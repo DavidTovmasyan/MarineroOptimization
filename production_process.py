@@ -43,5 +43,7 @@ class Sales:
   consumers_selling_price = [35, 32, 0]  # P_n_c
   firm_selling_price = [26, 22, 0]  # P_n_f
 
+  sales_opening_price = [2000, 1800, 900, 1300] # Perhaps per month
+
 class Storage:
     pass

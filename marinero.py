@@ -113,7 +113,9 @@ paying_salaries = pulp.lpSum(
 transportation = pulp.lpSum(L_i_j_k_l[i][j][k][l] * pp.Transportation.volume_of_products[j] * pp.Transportation.plant_to_sales_center_transportation_cost[k][l]
                    for i in range(pp.Business.num_months) for j in range(pp.Business.num_products) for k in range(pp.Business.num_plants) for l in range(pp.Business.num_sales))
 
-objective = revenue - buying_materials - paying_salaries - transportation
+opening_cost = pulp.lpSum(y_i_j[i][j] * pp.Sales.sales_opening_price[j] for i in range(pp.Business.num_months) for j in range(pp.Business.num_sales))
+
+objective = revenue - buying_materials - paying_salaries - transportation - opening_cost
 
 # Adding the objective function
 problem += objective
@@ -122,7 +124,7 @@ problem += objective
 
 material_consumption = [(pulp.lpSum(pp.Production.material_consumption[j][m] * Q_i_j_k[i][j][k]
                                    for i in range(pp.Business.num_months) for j in range(pp.Business.num_products) for k in range(pp.Business.num_plants)) -
-                        pulp.lpSum(b_i_j[i][m] for i in range(pp.Business.num_plants))) >= 0
+                        pulp.lpSum(b_i_j[i][m] for i in range(pp.Business.num_plants))) <= 0
                         for m in range(pp.Business.num_materials)]
 
 for mc in material_consumption:
@@ -141,7 +143,8 @@ produced_transported = [Q_i_j_k[i][j][k] >= pulp.lpSum(L_i_j_k_l[i][j][k][l] for
 for pt in produced_transported:
     problem += pt
 
-transported_sold = [pulp.lpSum(L_i_j_k_l[i][j][k][l] >= q_i_j_k_l[i][j][l][0] + q_i_j_k_l[i][j][l][1] for k in range(pp.Business.num_plants))
+# TODO: Check
+transported_sold = [pulp.lpSum(L_i_j_k_l[i][j][k][l] - (q_i_j_k_l[i][j][l][0] + q_i_j_k_l[i][j][l][1]) for k in range(pp.Business.num_plants)) >= 0
                     for i in range(pp.Business.num_months) for j in range(pp.Business.num_products) for l in range(pp.Business.num_sales)]
 
 for ts in transported_sold:
@@ -180,7 +183,16 @@ worked_hours_spent_hours = [
 for ws in worked_hours_spent_hours:
     problem += ws
 
-# problem.writeLP("Marinero_1.lp")
+fabric_open_constr = [pulp.lpSum(x_i_j[i][j] for i in range(pp.Business.num_months)) >= 1 for j in range(pp.Business.num_plants)]
+sales_open_constr = [pulp.lpSum(y_i_j[i][j] for j in range(pp.Business.num_sales)) == 3 for i in range(pp.Business.num_months)]
+
+for foc in fabric_open_constr:
+    problem += foc
+
+for soc in sales_open_constr:
+    problem += soc
+
+# problem.writeLP("Marinero_2.lp")
 problem.solve()
 print("Status:", pulp.LpStatus[problem.status])
 for v in problem.variables():
