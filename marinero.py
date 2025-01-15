@@ -66,6 +66,13 @@ q_i_j_k_l = pulp.LpVariable.dicts(
     cat=pulp.LpInteger
 )
 
+S_i_j_k = pulp.LpVariable.dicts(
+    "StorageProducts",
+    (range(pp.Business.num_months), range(pp.Business.num_products), range(pp.Business.num_sales)),
+    lowBound=0,
+    cat=pulp.LpContinuous
+)
+
 # Objective function
 
 big_M = 1e6  # Choose a sufficiently large value for M
@@ -115,7 +122,14 @@ transportation = pulp.lpSum(L_i_j_k_l[i][j][k][l] * pp.Transportation.volume_of_
 
 opening_cost = pulp.lpSum(y_i_j[i][j] * pp.Sales.sales_opening_price[j] for i in range(pp.Business.num_months) for j in range(pp.Business.num_sales))
 
-objective = revenue - buying_materials - paying_salaries - transportation - opening_cost
+storage_cost = pulp.lpSum(
+    S_i_j_k[i][j][l] * pp.Storage.cost_sales_center_product[l][j]
+    for i in range(pp.Business.num_months)
+    for j in range(pp.Business.num_products)
+    for l in range(pp.Business.num_sales)
+)
+
+objective = revenue - buying_materials - paying_salaries - transportation - opening_cost - storage_cost
 
 # Adding the objective function
 problem += objective
@@ -191,6 +205,43 @@ for foc in fabric_open_constr:
 
 for soc in sales_open_constr:
     problem += soc
+
+sold_demand = [pp.Sales.fixed_demand_product[j] - (q_i_j_k_l[i][j][l][0] + q_i_j_k_l[i][j][l][1]) >= 0
+               for i in range(pp.Business.num_months)
+               for j in range(pp.Business.num_products)
+               for l in range(pp.Business.num_sales)]
+
+for sd in sold_demand:
+    problem += sd
+
+# Storage constraints
+# Initialize storage for the first month to zero
+for j in range(pp.Business.num_products):
+    for l in range(pp.Business.num_sales):
+        problem += S_i_j_k[0][j][l] == 0, f"InitialStorage_0_{j}_{l}"
+
+# Modify constraints to include storage
+for i in range(pp.Business.num_months):
+    for j in range(pp.Business.num_products):
+        for l in range(pp.Business.num_sales):
+            # Products available for sale are either transported or from storage
+            available_products = (
+                pulp.lpSum(L_i_j_k_l[i][j][k][l] for k in range(pp.Business.num_plants)) +
+                (S_i_j_k[i - 1][j][l] if i > 0 else 0)
+            )
+            problem += available_products >= q_i_j_k_l[i][j][l][0] + q_i_j_k_l[i][j][l][1] + S_i_j_k[i][j][l]
+
+# Ensure storage products are carried over correctly
+for i in range(1, pp.Business.num_months):
+    for j in range(pp.Business.num_products):
+        for l in range(pp.Business.num_sales):
+            # Storage balance: products carried over to the next month
+            problem += S_i_j_k[i][j][l] == (
+                pulp.lpSum(L_i_j_k_l[i - 1][j][k][l] for k in range(pp.Business.num_plants)) +
+                S_i_j_k[i - 1][j][l] -
+                (q_i_j_k_l[i - 1][j][l][0] + q_i_j_k_l[i - 1][j][l][1])
+            )
+
 
 # problem.writeLP("Marinero_2.lp")
 problem.solve()

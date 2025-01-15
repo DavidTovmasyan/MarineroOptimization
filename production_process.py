@@ -1,11 +1,7 @@
 # TODO
-# - add sales center opening prices
-# - add storage usage
 # - add varying buying prices
 
-# - add frisbees
-# - add advertising
-# - add demand
+# Fixed demand, no need to sell frisbies, no need to do advertising
 
 
 class Business:
@@ -45,5 +41,7 @@ class Sales:
 
   sales_opening_price = [2000, 1800, 900, 1300] # Perhaps per month
 
+  fixed_demand_product = [1200, 500, 100]
+
 class Storage:
-    pass
+    cost_sales_center_product = [[2.4, 1.6, 0.04], [1.8, 1.2, 0.03], [0.9, 0.6, 0.015], [2.1, 1.4, 0.035]]
